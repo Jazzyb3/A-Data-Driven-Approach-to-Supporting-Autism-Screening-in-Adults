@@ -1,0 +1,1077 @@
+---
+title: "STAT 6302 - Project"
+author: Baldwin, Jamie
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: true
+    code-line-numbers: true
+    code-summary: "SHOW ME THE CODE!"
+    code-tools: true
+    theme: sketchy
+editor: visual
+---
+
+```{=html}
+<style>
+body {
+    background-color: #F8C8DC; /* Example background color */
+    color: #8B5E83;
+    
+}
+
+/* Active tab (when selected) */
+.nav-tabs .nav-link.active {
+    background-color: #d4a2f2e0;  /* Active tab background color */
+    color: #8B5E83;               /* Active tab text color */
+}
+
+    .highlight {
+        background-color: DarkOrchid;
+        color: black;
+        padding: 2px;
+    }
+
+</style>
+```
+
+```{r Data Initiation}
+autism <- read.csv("C:\\Users\\jasmi\\OneDrive - Southern Methodist University\\Previous Courses\\6302\\Project\\autism+screening+adult\\autism.csv")
+head(autism)
+```
+
+## Exploratory Data Analysis
+
+### Variable Types & Distributions
+
+```{r EDA 1}
+### WE WANT TO CATCH ANY MISSING VALUES AND CORRECTLY CHANGE THEM TO NAs
+
+# Combine "others" into "Others" in the ethnicity variable
+autism$ethnicity <- ifelse(autism$ethnicity == "others", "Others", autism$ethnicity)
+
+
+# Replace "" and "?" with NA across all character or factor columns
+autism[] <- lapply(autism, function(x) {
+  if (is.character(x) || is.factor(x)) {
+    x <- as.character(x)
+    x[x == "" | x == "?"] <- NA
+    return(as.factor(x))  # Reconvert to factor if desired
+  } else {
+    return(x)
+  }
+})
+
+# Also convert numeric "NA-like" values (if stored as strings) to actual NA
+autism[] <- lapply(autism, function(x) {
+  if (is.character(x)) {
+    x[x %in% c("NA", "na", "NaN", "null")] <- NA
+    return(as.factor(x))
+  } else {
+    return(x)
+  }
+})
+
+### WANT TO RENAME SOME MISSPELLED VARIABLE NAMES
+
+# Rename variables in the dataset
+names(autism)[names(autism) == "austim"] <- "autism"
+names(autism)[names(autism) == "jundice"] <- "jaundice"
+names(autism)[names(autism) == "contry_of_res"] <- "country_of_res"
+
+
+
+lapply(autism, unique)
+
+```
+
+```{r EDA 2}
+# Load libraries
+library(tidyverse)
+library(janitor)
+library(ggplot2)
+library(patchwork)  #For multi-plot layout
+
+#Clean names, just in case
+autism <- clean_names(autism)
+
+#Quick structure view
+glimpse(autism)
+
+#Create histograms for A1–A10 Scores using a loop
+score_vars <- paste0("a", 1:10, "_score")
+
+score_plots <- lapply(score_vars, function(var) {
+  ggplot(autism, aes_string(x = var)) +
+    geom_histogram(binwidth = 1, fill = "lightsteelblue", color = "black") +
+    labs(title = paste0("Distribution of ", toupper(var)), x = var, y = "Count")
+})
+
+#Arrange a few sample plots using patchwork
+(score_plots[[1]] | score_plots[[2]]) /
+(score_plots[[3]] | score_plots[[4]]) /
+(score_plots[[5]] | score_plots[[6]])/
+(score_plots[[7]] | score_plots[[8]]) /
+(score_plots[[9]] | score_plots[[10]])
+
+#Histogram: Age
+ggplot(autism, aes(x = age)) +
+  geom_histogram(binwidth = 2, fill = "skyblue", color = "black") +
+  labs(title = "Age Distribution", x = "Age", y = "Count")
+
+#Histogram: Result Score
+ggplot(autism, aes(x = result)) +
+  geom_histogram(binwidth = 1, fill = "orchid", color = "black") +
+  labs(title = "Total Score Distribution", x = "Result", y = "Count")
+
+#Bar plot: Gender
+ggplot(autism, aes(x = gender)) +
+  geom_bar(fill = "lightcoral") +
+  labs(title = "Gender Distribution", x = "Gender", y = "Count")
+
+#Bar plot: Ethnicity
+ggplot(autism, aes(x = ethnicity)) +
+  geom_bar(fill = "lightgreen") +
+  labs(title = "Ethnicity Distribution", x = "Ethnicity", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#Bar plot: Used App Before
+ggplot(autism, aes(x = used_app_before)) +
+  geom_bar(fill = "lightblue") +
+  labs(title = "App Usage History", x = "Used App Before", y = "Count")
+
+ggplot(autism, aes(x = jaundice)) +
+  geom_bar(fill = "goldenrod") +
+  labs(title = "Distribution of Jaundice at Birth", x = "Jaundice", y = "Count") +
+  theme_minimal()
+
+library(forcats)
+
+autism %>%
+  count(country_of_res, sort = TRUE) %>%
+  top_n(10, n) %>%
+  ggplot(aes(x = fct_reorder(country_of_res, n), y = n)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top 10 Countries of Residence", x = "Country", y = "Count") +
+  theme_minimal()
+
+ggplot(autism, aes(x = relation)) +
+  geom_bar(fill = "mediumpurple") +
+  labs(title = "Survey Respondent Relation", x = "Relation", y = "Count") +
+  theme_minimal()
+
+```
+
+**FROM BOTH THE UNIQUE VALUES CODE AND AGE DISTRIBUTION GRAPH ABOVE WE CAN SEE AN INPUTING ERROR IN THE DATA HAS OCCURED WITH AN AGE VALUE OF 383, I WOULD SAY IT IS SAFE TO ASSUME THE CORRECT AGE WAS MEANT TO BE 38. I WILL MAKE THE ASSUMPTION IT WAS MEANT TO BE 38 AS THE REST OF THE AGES RANGE FROM 17 TO 64, AND RECREATE THAT GRAPH.**
+
+```{r EDA 2.5}
+#Fixing the typo in age
+autism$age[autism$age == 383] <- 38
+
+#Histogram: Age
+ggplot(autism, aes(x = age)) +
+  geom_histogram(binwidth = 2, fill = "skyblue", color = "black") +
+  labs(title = "Age Distribution", x = "Age", y = "Count")
+
+```
+
+### Drop Variables
+
+Since the variable age description (age_desc) only has one level "18 and more" we can remove it completely as it wont add anything to the model.
+
+```{r EDA 4}
+# Function to show unique values and their counts
+value_counts <- function(var) {
+  tbl <- table(var, useNA = "ifany")
+  print(tbl)
+  cat("\nTotal unique values (including NA):", length(tbl), "\n")
+}
+
+# Example usage:
+value_counts(autism$age_desc)
+value_counts(autism$relation)
+value_counts(autism$used_app_before)
+value_counts(autism$jaundice)
+
+
+#Drop the variable 'age_desc'
+autism <- autism[, !names(autism) %in% "age_desc"]
+autism <- autism[, !names(autism) %in% "used_app_before"]
+```
+
+### Missing Data
+
+```{r EDA 3}
+#Count of missing values per variable
+colSums(is.na(autism))
+
+#Impute age with mean
+autism$age[is.na(autism$age)] <- mean(autism$age, na.rm = TRUE)
+
+#Function to compute mode (most frequent value)
+get_mode <- function(x) {
+  ux <- na.omit(unique(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#Impute ethnicity with mode
+autism$ethnicity[is.na(autism$ethnicity)] <- get_mode(autism$ethnicity)
+
+#Impute relation with mode
+autism$relation[is.na(autism$relation)] <- get_mode(autism$relation)
+
+```
+
+### Encode
+
+BESURE TO INCLUDE DUMMY INCODING IN RECIPE
+
+### Split into Predictors and Outcome
+
+THIS WILL BE DONE IN THE MODEL RECIPE
+
+### Outcome Variable Balance
+
+```{r EDA 7}
+#Convert outcome variable to factor
+autism$autism <- as.factor(autism$autism)
+
+#Frequency table
+table(autism$autism)
+
+#Proportion table    
+prop.table(table(autism$autism))
+
+library(ggplot2)
+library(dplyr)
+
+# Bar plot: Count comparison
+autism %>%
+  select(autism, class_asd) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Response") %>%
+  ggplot(aes(x = Response, fill = Variable)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Comparison of Autism Diagnosis and App Classification",
+       x = "Response (Yes/No)", y = "Count") +
+  scale_fill_manual(values = c("autism" = "skyblue", "class_asd" = "orchid")) +
+  theme_minimal()
+
+```
+
+### Up-Sampling
+
+CAN DO THIS IN RECIPE
+
+### Correlations & Associations
+
+```{r EDA 8}
+### numeric variables ###
+numeric_vars <- autism %>% select_if(is.numeric)
+
+#Correlation matrix
+cor_matrix <- cor(numeric_vars, use = "pairwise.complete.obs")
+
+#Plot
+library(corrplot)
+corrplot::corrplot(cor_matrix, method = "circle", type = "upper", tl.col = "black")
+
+### Categorical Variables ###
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(patchwork)  # for arranging plots
+
+### Categorical Variables - Chi-square Tests ###
+table_gender <- table(autism$gender, autism$autism)
+chisq.test(table_gender)
+
+table_ethnicity <- table(autism$ethnicity, autism$autism)
+chisq.test(table_ethnicity)
+
+table_relation <- table(autism$relation, autism$autism)
+chisq.test(table_relation)
+
+table_jaundice <- table(autism$jaundice, autism$autism)
+chisq.test(table_jaundice)
+
+table_cor <- table(autism$country_of_res, autism$autism)
+chisq.test(table_cor)
+
+table_class <- table(autism$class_asd, autism$autism)
+chisq.test(table_class)
+
+### Stacked Bar Plots ###
+p1 <- ggplot(autism, aes(x = gender, fill = autism)) +
+  geom_bar(position = "fill") +
+  ylab("Proportion") +
+  ggtitle("Gender vs Autism") +
+  theme_minimal()
+
+p2 <- ggplot(autism, aes(x = ethnicity, fill = autism)) +
+  geom_bar(position = "fill") +
+  ylab("Proportion") +
+  ggtitle("Ethnicity vs Autism") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p3 <- ggplot(autism, aes(x = relation, fill = autism)) +
+  geom_bar(position = "fill") +
+  ylab("Proportion") +
+  ggtitle("Relation vs Autism") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p4 <- ggplot(autism, aes(x = jaundice, fill = autism)) +
+  geom_bar(position = "fill") +
+  ylab("Proportion") +
+  ggtitle("Jaundice vs Autism") +
+  theme_minimal()
+
+library(forcats)
+
+# Create a new variable with only the top 10 countries
+autism <- autism %>%
+  mutate(top_country = fct_lump(country_of_res, n = 10))
+
+# Updated stacked bar plot
+p5 <- ggplot(autism, aes(x = top_country, fill = autism)) +
+  geom_bar(position = "fill") +
+  ylab("Proportion") +
+  ggtitle("Top 10 Countries vs Autism") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+p6 <- ggplot(autism, aes(x = class_asd, fill = autism)) +
+  geom_bar(position = "fill") +
+  ylab("Proportion") +
+  ggtitle("Classified by App vs Autism") +
+  theme_minimal()
+
+### Arrange Plots into Grid ###
+(p1 | p3)/(p4 | p6)
+
+(p2 | p5)
+
+```
+
+### Survey Score Patterns
+
+```{r EDA 9}
+#Boxplot of result by autism
+ggplot(autism, aes(x = autism, y = result, fill = autism)) +
+  geom_boxplot() +
+  theme_minimal() +
+  ggtitle("Total Survey Result by Autism Diagnosis")
+
+#Or use violin plot
+ggplot(autism, aes(x = autism, y = result, fill = autism)) +
+  geom_violin() +
+  theme_minimal() +
+  ggtitle("Distribution of Result by Autism Diagnosis")
+
+```
+
+These plots pretty much confirm what we know about scoring for any autism screening survey that it's not perfect and is on more of a sliding scale than a defined one. So for the lack of additional context this section will not be included in the report.
+
+### Interaction Exploration
+
+```{r EDA 10}
+# Load required library
+library(dplyr)
+
+# Set significance threshold
+alpha <- 0.05
+
+# Get predictor names (exclude only the outcome variable)
+predictors <- setdiff(names(autism), c("autism", "top_country"))
+
+# Initialize result dataframe
+significant_interactions <- data.frame(var1 = character(), var2 = character(), p_value = numeric())
+
+# Loop over all unique pairs of predictors
+for (i in 1:(length(predictors) - 1)) {
+  for (j in (i + 1):length(predictors)) {
+    var1 <- predictors[i]
+    var2 <- predictors[j]
+    
+    # Try-catch to handle problematic combinations
+    try({
+      # Main effects only model
+      main_formula <- as.formula(paste("autism ~", var1, "+", var2))
+      model_main <- glm(main_formula, data = autism, family = binomial)
+
+      # Interaction model
+      interaction_formula <- as.formula(paste("autism ~", var1, "*", var2))
+      model_inter <- glm(interaction_formula, data = autism, family = binomial)
+
+      # Likelihood ratio test
+      lrt <- anova(model_main, model_inter, test = "LRT")
+      p_val <- lrt$`Pr(>Chi)`[2]
+
+      if (!is.na(p_val) && p_val < alpha) {
+        significant_interactions <- rbind(significant_interactions, 
+                                          data.frame(var1 = var1, var2 = var2, p_value = p_val))
+      }
+    }, silent = TRUE)
+  }
+}
+
+# Sort by p-value and print results
+significant_interactions <- significant_interactions %>% arrange(p_value)
+print(significant_interactions)
+
+
+```
+
+```{r EDA 11}
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+
+# Your significant interactions
+interactions <- data.frame(
+  var1 = c("a6_score", "gender", "a8_score", "a4_score", "a10_score", "a8_score", "ethnicity", "a8_score"),
+  var2 = c("ethnicity", "jaundice", "a9_score", "a8_score", "jaundice", "gender", "result", "country_of_res")
+)
+
+# Function to generate interaction plots and return ggplot object
+generate_plot <- function(data, var1, var2) {
+  v1 <- data[[var1]]
+  v2 <- data[[var2]]
+  
+  is_v1_cat <- is.factor(v1) || is.character(v1)
+  is_v2_cat <- is.factor(v2) || is.character(v2)
+
+  if (!is_v1_cat & !is_v2_cat) {
+    return(
+      ggplot(data, aes_string(x = var1, y = var2, color = "autism")) +
+        geom_point(alpha = 0.6, position = position_jitter(width = 0.2, height = 0.2)) +
+        theme_minimal() +
+        labs(title = paste(var1, "vs", var2))
+    )
+  } else if (is_v1_cat & is_v2_cat) {
+    return(
+      ggplot(data, aes_string(x = var1, fill = "autism")) +
+        geom_bar(position = "fill") +
+        facet_wrap(as.formula(paste("~", var2))) +
+        scale_y_continuous(labels = scales::percent_format()) +
+        theme_minimal() +
+        labs(y = "Proportion", title = paste(var1, "by", var2))
+    )
+  } else {
+    if (is_v1_cat) {
+      return(
+        ggplot(data, aes_string(x = var1, y = var2, fill = "autism")) +
+          geom_boxplot() +
+          theme_minimal() +
+          labs(title = paste(var1, "vs", var2))
+      )
+    } else {
+      return(
+        ggplot(data, aes_string(x = var2, y = var1, fill = "autism")) +
+          geom_boxplot() +
+          theme_minimal() +
+          labs(title = paste(var2, "vs", var1))
+      )
+    }
+  }
+}
+
+# Generate all plots and store them
+plots <- list()
+for (i in 1:nrow(interactions)) {
+  plots[[i]] <- generate_plot(autism, interactions$var1[i], interactions$var2[i])
+}
+
+# Display in grid: 2 columns
+wrap_plots(plots, ncol = 2)
+
+```
+
+## Modeling
+
+### Base Logistic Regression Model
+
+```{r Model 1}
+library(recipes)
+library(rsample)
+library(parsnip)
+library(workflows)
+library(tune)
+library(yardstick)
+library(broom)
+##The outcome is a factor
+class(autism$autism)
+
+##We will be predicting the P(yes)
+levels(autism$autism)
+
+autism_recipe <- recipe(autism ~ a1_score + a2_score + a3_score + a4_score + a5_score + a6_score + a7_score + a8_score + a9_score + a10_score + age + gender + ethnicity + jaundice + country_of_res + relation + class_asd, 
+                data = autism) %>% 
+  step_dummy(all_nominal_predictors())
+
+set.seed(123)
+autism_kfolds <- vfold_cv(autism, v = 10, repeats = 5, strata = "autism")
+
+autism_logistic <- logistic_reg() %>% 
+                  set_mode("classification") %>%
+                  set_engine("glm") 
+
+autism_wf <- workflow() %>% 
+            add_recipe(autism_recipe) %>% 
+            add_model(autism_logistic)
+
+set.seed(123)
+autism_resammple <- fit_resamples(
+              autism_wf,
+              resamples = autism_kfolds,
+              metrics = metric_set(accuracy, roc_auc, kap, sens, spec, brier_class))
+
+autism_resammple %>% collect_metrics()
+
+##Extract coefficients (after fitting on full data)
+autism_model <- autism_wf %>%
+  fit(autism) %>%
+  extract_fit_parsnip() %>%
+  tidy()
+
+autism_model
+```
+
+### Custom Model 1
+
+```{r Model 2}
+library(themis) # for upsample
+autism_recipe2 <- recipe(autism ~ a1_score + a2_score + a3_score + a4_score + a5_score + a6_score + a7_score + a8_score + a9_score + a10_score + age + gender + ethnicity + jaundice + country_of_res + relation + class_asd + result, 
+                data = autism) %>% 
+  step_interact(terms = ~ ethnicity:result) %>%
+  step_interact(terms = ~ gender:jaundice) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_upsample(autism, over_ratio = 1)
+
+set.seed(123)
+autism_kfolds <- vfold_cv(autism, v = 10, repeats = 5, strata = "autism")
+
+autism_logistic <- logistic_reg() %>% 
+                  set_mode("classification") %>%
+                  set_engine("glm") 
+
+autism_wf2 <- workflow() %>% 
+            add_recipe(autism_recipe2) %>% 
+            add_model(autism_logistic)
+
+set.seed(123)
+autism_resammple2 <- fit_resamples(
+              autism_wf2,
+              resamples = autism_kfolds,
+              metrics = metric_set(accuracy, roc_auc, kap, sens, spec, brier_class))
+
+autism_resammple2 %>% collect_metrics()
+
+##Extract coefficients (after fitting on full data)
+autism_model2 <- autism_wf2 %>%
+  fit(autism) %>%
+  extract_fit_parsnip() %>%
+  tidy()
+
+autism_model2
+```
+
+Adds upsampling and interaction terms
+
+### Custom Model 2
+
+Adds elastic net
+
+```{r Model 3}
+library(themis) # for upsample
+library(dials)
+
+# Define recipe with interactions and upsampling
+autism_recipe3 <- recipe(autism ~ a1_score + a2_score + a3_score + a4_score + a5_score + a6_score + a7_score + a8_score + a9_score + a10_score + age + gender + ethnicity + jaundice + country_of_res + relation + class_asd + result, 
+                data = autism) %>% 
+  step_interact(terms = ~ ethnicity:result + gender:jaundice) %>%
+  step_dummy(all_nominal_predictors()) %>% 
+  step_upsample(autism, over_ratio = 1)
+
+# Cross-validation setup
+set.seed(123)
+autism_kfolds <- vfold_cv(autism, v = 10, repeats = 5, strata = "autism")
+
+# Define penalized logistic regression model with tunable hyperparameters
+autism_en_model <- logistic_reg(penalty = tune(), mixture = tune()) %>% 
+  set_mode("classification") %>%
+  set_engine("glmnet") 
+
+# Define workflow
+autism_en_wflow <- workflow() %>% 
+  add_recipe(autism_recipe3) %>% 
+  add_model(autism_en_model)
+
+# Create tuning grid (space-filling design)
+en_param <- extract_parameter_set_dials(autism_en_model)
+glh_en <- grid_space_filling(en_param, size = 10, type = "latin_hypercube")
+
+# Tune the model with resampling
+set.seed(123)
+autism_en_tune <- tune_grid(
+  autism_en_wflow,
+  resamples = autism_kfolds,
+  grid = glh_en,
+  metrics = metric_set(accuracy, roc_auc, kap, sens, spec, brier_class)
+)
+
+# Collect and print metrics from tuning
+autism_en_tune %>% collect_metrics()
+
+# Select best parameters based on ROC AUC
+autism_en_param <- autism_en_tune %>% select_best(metric = "roc_auc")
+
+# Finalize the model with best parameters
+autism_en_model2 <- finalize_model(autism_en_model, autism_en_param)
+
+# Update the workflow with the finalized model
+autism_en_wflow2 <- autism_en_wflow %>%
+  update_model(autism_en_model2)
+
+# Fit on resamples to evaluate metrics
+autism_resample_final <- fit_resamples(
+  autism_en_wflow2,
+  resamples = autism_kfolds,
+  metrics = metric_set(accuracy, roc_auc, kap, sens, spec, brier_class)
+)
+
+# Collect metrics after using the best parameters
+autism_resample_final %>%
+  collect_metrics()
+
+# Fit the finalized workflow to the full data
+autism_en_final_fit <- autism_en_wflow2 %>%
+  fit(data = autism)
+
+# Collect and tidy the coefficients
+autism_en_params <- autism_en_final_fit %>%
+  extract_fit_parsnip() %>%
+  tidy()
+
+# Print the coefficients
+autism_en_params
+
+library(dplyr)
+
+# Filter out predictors with zero coefficients
+autism_en_params_nonzero <- autism_en_params %>%
+  filter(estimate != 0)
+
+# Print the filtered results
+autism_en_params_nonzero
+```
+
+### Elastic Net
+
+```{r Modeling 4}
+library(themis) # for upsample
+
+# Define recipe with interactions and upsampling
+autism_recipe4 <- recipe(autism ~ a1_score + a2_score + a3_score + a4_score + a5_score + a6_score + a7_score + a8_score + a9_score + a10_score + age + gender + ethnicity + jaundice + country_of_res + relation + class_asd, 
+                data = autism) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_upsample(autism, over_ratio = 1)
+
+# Cross-validation setup
+set.seed(123)
+autism_kfolds <- vfold_cv(autism, v = 10, repeats = 5, strata = "autism")
+
+# Define penalized logistic regression model with tunable hyperparameters
+autism_en_model <- logistic_reg(penalty = tune(), mixture = tune()) %>% 
+  set_mode("classification") %>%
+  set_engine("glmnet") 
+
+# Define workflow
+autism_en_wflow3 <- workflow() %>% 
+  add_recipe(autism_recipe4) %>% 
+  add_model(autism_en_model)
+
+# Create tuning grid (space-filling design)
+en_param <- extract_parameter_set_dials(autism_en_model)
+glh_en <- grid_space_filling(en_param, size = 10, type = "latin_hypercube")
+
+# Tune the model with resampling
+set.seed(123)
+autism_en_tune <- tune_grid(
+  autism_en_wflow3,
+  resamples = autism_kfolds,
+  grid = glh_en,
+  metrics = metric_set(accuracy, roc_auc, kap, sens, spec, brier_class)
+)
+
+# Collect and print metrics from tuning
+autism_en_tune %>% collect_metrics()
+
+# Select best parameters based on ROC AUC
+autism_en_param3 <- autism_en_tune %>% select_best(metric = "roc_auc")
+
+# Finalize the model with best parameters
+autism_en_model3 <- finalize_model(autism_en_model, autism_en_param3)
+
+# Update the workflow with the finalized model
+autism_en_wflow4 <- autism_en_wflow3 %>%
+  update_model(autism_en_model3)
+
+# Fit on resamples to evaluate metrics
+autism_resample_final3 <- fit_resamples(
+  autism_en_wflow4,
+  resamples = autism_kfolds,
+  metrics = metric_set(accuracy, roc_auc, kap, sens, spec, brier_class)
+)
+
+# Collect metrics after using the best parameters
+autism_resample_final3 %>%
+  collect_metrics()
+
+# Fit the finalized workflow to the full data
+autism_en_final_fit3 <- autism_en_wflow4 %>%
+  fit(data = autism)
+
+# Collect and tidy the coefficients
+autism_en_params3 <- autism_en_final_fit3 %>%
+  extract_fit_parsnip() %>%
+  tidy()
+
+# Print the coefficients
+autism_en_params3
+
+library(dplyr)
+
+# Filter out predictors with zero coefficients
+autism_en_params_nonzero3 <- autism_en_params3 %>%
+  filter(estimate != 0)
+
+# Print the filtered results
+autism_en_params_nonzero3
+```
+
+No interaction terms
+
+## Additional Code for Report Graphics
+
+```{r Fancy Table}
+library(gt)
+
+# Add a column to identify each model
+autism_metrics <- autism_resammple %>% collect_metrics() %>% mutate(Model = "Base Model")
+autism_metrics2 <- autism_resammple2 %>% collect_metrics() %>% mutate(Model = "Custom Model 1")
+autism_metrics3 <- autism_resample_final %>% collect_metrics() %>% mutate(Model = "Custom Model 2")
+autism_metrics4 <- autism_resample_final3 %>% collect_metrics() %>% mutate(Model = "EN Model")
+
+# Combine all into one data frame
+all_metrics <- bind_rows(autism_metrics, autism_metrics2, autism_metrics3, autism_metrics4)
+
+# Pivot wider to compare metrics across models
+metrics_wide <- all_metrics %>%
+  select(Model, .metric, mean) %>%
+  pivot_wider(names_from = .metric, values_from = mean)
+
+# Print the final comparison table using gt
+metrics_wide %>%
+  gt() %>%
+  tab_header(
+    title = "Model Comparison: Performance Metrics",
+    subtitle = "Evaluating classification models on Autism Screening"
+  ) %>%
+  fmt_number(
+    columns = where(is.numeric),
+    decimals = 3
+  ) %>%
+  cols_label(
+    Model = "Model",
+    accuracy = "Accuracy",
+    kap = "Kappa",
+    roc_auc = "ROC AUC",
+    sens = "Specificity",
+    spec = "Sensitivity",
+    brier_class = "Brier Score"
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_column_labels(everything())
+  ) %>%
+  opt_table_outline() %>%
+  opt_row_striping()
+
+```
+
+### Base Model
+
+```{r Base Model Powerful Predictors}
+library(dplyr)
+library(ggplot2)
+
+
+# Get top 5 positive and top 5 negative predictors
+top_positivea <- autism_model %>%
+  arrange(desc(estimate)) %>%
+  slice_head(n = 5)
+
+top_negativea <- autism_model %>%
+  arrange(estimate) %>%
+  slice_head(n = 5)
+
+# Combine and plot
+top_combineda <- bind_rows(top_positivea, top_negativea)
+
+ggplot(top_combineda, aes(x = reorder(term, estimate), y = estimate, fill = estimate > 0)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(
+    title = "Top 5 Positive and Negative Predictors",
+    x = "Predictor",
+    y = "Coefficient Estimate"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "#66c2a5", "FALSE" = "#fc8d62")) +
+  theme_minimal()
+
+```
+
+```{r Base Model Predictors List}
+library(dplyr)
+
+# Count and list positive and negative predictors
+positive_predictorsa <- autism_model %>%
+  filter(term != "(Intercept)", estimate > 0) %>%
+  arrange(desc(estimate))
+
+negative_predictorsa <- autism_model %>%
+  filter(term != "(Intercept)", estimate < 0) %>%
+  arrange(estimate)
+
+# Print counts
+cat("Number of positive predictors:", nrow(positive_predictorsa), "\n")
+cat("Number of negative predictors:", nrow(negative_predictorsa), "\n\n")
+
+# List predictors
+cat("Positive predictors:\n")
+print(positive_predictorsa)
+
+cat("\nNegative predictors:\n")
+print(negative_predictorsa)
+
+```
+
+### Custom Model 1
+
+```{r Custom Model 1 Powerful Predictors}
+library(dplyr)
+library(ggplot2)
+
+
+# Get top 5 positive and top 5 negative predictors
+top_positiveb <- autism_model2 %>%
+  arrange(desc(estimate)) %>%
+  slice_head(n = 5)
+
+top_negativeb <- autism_model2 %>%
+  arrange(estimate) %>%
+  slice_head(n = 5)
+
+# Combine and plot
+top_combinedb <- bind_rows(top_positiveb, top_negativeb)
+
+ggplot(top_combinedb, aes(x = reorder(term, estimate), y = estimate, fill = estimate > 0)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(
+    title = "Top 5 Positive and Negative Predictors",
+    x = "Predictor",
+    y = "Coefficient Estimate"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "#66c2a5", "FALSE" = "#fc8d62")) +
+  theme_minimal()
+
+```
+
+```{r Custom Model 1 Predictors List}
+library(dplyr)
+
+#Count and list positive and negative predictors
+positive_predictorsb <- autism_model2 %>%
+  filter(term != "(Intercept)", estimate > 0) %>%
+  arrange(desc(estimate))
+
+negative_predictorsb <- autism_model2 %>%
+  filter(term != "(Intercept)", estimate < 0) %>%
+  arrange(estimate)
+
+#Print counts
+cat("Number of positive predictors:", nrow(positive_predictorsb), "\n")
+cat("Number of negative predictors:", nrow(negative_predictorsb), "\n\n")
+
+# List predictors
+cat("Positive predictors:\n")
+print(positive_predictorsb)
+
+cat("\nNegative predictors:\n")
+print(negative_predictorsb)
+
+```
+
+### Custom Model 2
+
+```{r Custom Model 2 Powerful Predictors}
+library(dplyr)
+library(ggplot2)
+
+
+# Get top 5 positive and top 5 negative predictors
+top_positivec <- autism_en_params_nonzero %>%
+  arrange(desc(estimate)) %>%
+  slice_head(n = 5)
+
+top_negativec <- autism_en_params_nonzero %>%
+  filter(term != "(Intercept)") %>%
+  arrange(estimate) %>%
+  slice_head(n = 5)
+
+# Combine and plot
+top_combinedc <- bind_rows(top_positivec, top_negativec)
+
+ggplot(top_combinedc, aes(x = reorder(term, estimate), y = estimate, fill = estimate > 0)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(
+    title = "Top 5 Positive and Negative Predictors",
+    x = "Predictor",
+    y = "Coefficient Estimate"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "#66c2a5", "FALSE" = "#fc8d62")) +
+  theme_minimal()
+
+```
+
+```{r Custom Model 2 Predictors List}
+library(dplyr)
+
+#Count and list positive and negative predictors
+positive_predictorsc <- autism_en_params_nonzero %>%
+  filter(term != "(Intercept)", estimate > 0) %>%
+  arrange(desc(estimate))
+
+negative_predictorsc <- autism_en_params_nonzero %>%
+  filter(term != "(Intercept)", estimate < 0) %>%
+  arrange(estimate)
+
+#Print counts
+cat("Number of positive predictors:", nrow(positive_predictorsc), "\n")
+cat("Number of negative predictors:", nrow(negative_predictorsc), "\n\n")
+
+# List predictors
+cat("Positive predictors:\n")
+print(positive_predictorsc)
+
+cat("\nNegative predictors:\n")
+print(negative_predictorsc)
+
+```
+
+### Elastic Net
+
+```{r EN Powerful Predictors}
+library(dplyr)
+library(ggplot2)
+
+
+# Get top 5 positive and top 5 negative predictors
+top_positived <- autism_en_params_nonzero3 %>%
+  arrange(desc(estimate)) %>%
+  slice_head(n = 5)
+
+top_negatived <- autism_en_params_nonzero3 %>%
+  filter(term != "(Intercept)") %>%
+  arrange(estimate) %>%
+  slice_head(n = 5)
+
+# Combine and plot
+top_combinedd <- bind_rows(top_positived, top_negatived)
+
+ggplot(top_combinedd, aes(x = reorder(term, estimate), y = estimate, fill = estimate > 0)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(
+    title = "Top 5 Positive and Negative Predictors",
+    x = "Predictor",
+    y = "Coefficient Estimate"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "#66c2a5", "FALSE" = "#fc8d62")) +
+  theme_minimal()
+
+```
+
+```{r EN Predictors List}
+library(dplyr)
+
+#Count and list positive and negative predictors
+positive_predictorsd <- autism_en_params_nonzero3 %>%
+  filter(term != "(Intercept)", estimate > 0) %>%
+  arrange(desc(estimate))
+
+negative_predictorsd <- autism_en_params_nonzero3 %>%
+  filter(term != "(Intercept)", estimate < 0) %>%
+  arrange(estimate)
+
+#Print counts
+cat("Number of positive predictors:", nrow(positive_predictorsd), "\n")
+cat("Number of negative predictors:", nrow(negative_predictorsd), "\n\n")
+
+# List predictors
+cat("Positive predictors:\n")
+print(positive_predictorsd)
+
+cat("\nNegative predictors:\n")
+print(negative_predictorsd)
+
+```
+
+## Edits (9/24/25)
+
+```{r Regression Summary Table to Graph}
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Create your data frame
+df <- data.frame(
+  Model = c("Base Model", "Custom Model 1", "Custom Model 2", "EN Model"),
+  Accuracy = c(0.85, 0.70, 0.68, 0.69),
+  Brier_Score = c(0.12, 0.22, 0.20, 0.20),
+  Kappa = c(0.12, 0.16, 0.18, 0.19),
+  ROC_AUC = c(0.62, 0.61, 0.71, 0.71),
+  Specificity = c(0.95, 0.72, 0.69, 0.69),
+  Sensitivity = c(0.14, 0.53, 0.63, 0.63)
+)
+
+# Reshape to long format for ggplot
+df_long <- df %>%
+  pivot_longer(cols = -Model, names_to = "Metric", values_to = "Value")
+
+# Plot: small multiples (facet by metric)
+ggplot(df_long, aes(x = Model, y = Value, fill = Model)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~ Metric, scales = "free_y") +
+  geom_text(aes(label = round(Value, 3)), 
+            position = position_dodge(width = 0.9), vjust = -0.3, size = 3) +
+  labs(title = "Model Comparison: Performance Metrics",
+       subtitle = "Autism Screening Classification Models",
+       x = "", y = "Value") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1),
+        legend.position = "none")
+
+```
+
